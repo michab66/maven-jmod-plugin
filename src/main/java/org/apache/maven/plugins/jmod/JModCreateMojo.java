@@ -22,6 +22,8 @@ package org.apache.maven.plugins.jmod;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -53,7 +55,7 @@ import org.codehaus.plexus.util.cli.Commandline;
  * The <code>create</code> goal is intended to create <code>jmod</code> files which can be used for later linking via
  * <a href="https://maven.apache.org/plugins/maven-jlink-plugin/">maven-jlink-plugin</a>. The <code>jmod</code> files
  * can not be used as usual dependencies on the classpath only in relationship with <code>maven-jlink-plugin</code>.
- * 
+ *
  * @author Karl Heinz Marbaise <a href="mailto:khmarbaise@apache.org">khmarbaise@apache.org</a>
  */
 // CHECKSTYLE_OFF: LineLength
@@ -77,7 +79,7 @@ public class JModCreateMojo
     /**
      * Specifies one or more directories containing native commands to be copied. The given directories are relative to
      * the current base directory. If no entry is defined the default is <code>src/main/cmds</code> used.
-     * 
+     *
      * <pre>
      * &lt;cmds&gt;
      *   &lt;cmd&gt;...&lt;/cmd&gt;
@@ -101,7 +103,7 @@ public class JModCreateMojo
      * Specifies one or more directories containing configuration files to be copied. Location of user-editable config
      * files. If no configuration is given the <code>src/main/configs</code> location is used as default. If this
      * directory does not exist the whole will be ignored.
-     * 
+     *
      * <pre>
      * &lt;configs&gt;
      *   &lt;config&gt;...&lt;/config&gt;
@@ -124,7 +126,7 @@ public class JModCreateMojo
     /**
      * Exclude files matching the pattern list. Each element using one the following forms: &lt;glob-pattern&gt;,
      * glob:&lt;glob-pattern&gt; or regex:&lt;regex-pattern&gt;
-     * 
+     *
      * <pre>
      * &lt;excludes&gt;
      *   &lt;exclude&gt;...&lt;/exclude&gt;
@@ -147,7 +149,7 @@ public class JModCreateMojo
      * Specifies one or more directories containing native libraries to be copied (The given directories are relative to
      * project base directory). If no configuration is given in <<pom.xml>> file the location <code>src/main/libs</code>
      * will be used. If the default location does not exist the whole configuration will be ignored.
-     * 
+     *
      * <pre>
      * &lt;libs&gt;
      *   &lt;lib&gt;...&lt;/lib&gt;
@@ -182,7 +184,7 @@ public class JModCreateMojo
      * Define the locations of header files. The default location is <code>src/main/headerfiles</code>. If the the
      * default location does not exist in the current project it will be ignored. The given directories are relative to
      * the project base directory. If an entry is defined the definition of all locations is needed.
-     * 
+     *
      * <pre>
      * &lt;headerFiles&gt;
      *   &lt;headerFile&gt;...&lt;/headerFile&gt;
@@ -205,7 +207,7 @@ public class JModCreateMojo
     /**
      * Define the locations of man pages. The default location is <code>src/main/manpages</code>. The given man pages
      * locations are relative to the project base directory.
-     * 
+     *
      * <pre>
      * &lt;manPages&gt;
      *   &lt;manPage&gt;...&lt;/manPage&gt;
@@ -234,7 +236,7 @@ public class JModCreateMojo
     /**
      * Define the location of legal notices. The default location is <code>src/main/legalnotices</code>. The given man
      * pages locations are relative to the project base directory.
-     * 
+     *
      * <pre>
      * &lt;legalNotices&gt;
      *   &lt;legalNotice&gt;...&lt;/legalNotice&gt;
@@ -278,8 +280,9 @@ public class JModCreateMojo
     private File outputDirectory;
 
     // calculated based on jmod(.exe)/../..
-    private File javaHome; 
-    
+    private File javaHome;
+
+    @Override
     public void execute()
         throws MojoExecutionException, MojoFailureException
     {
@@ -410,7 +413,7 @@ public class JModCreateMojo
 
     private List<File> getCompileClasspathElements( MavenProject project )
     {
-        List<File> list = new ArrayList<File>( project.getArtifacts().size() + 1 );
+        List<File> list = new ArrayList<>( project.getArtifacts().size() + 1 );
 
         if ( targetClassesDirectory.exists() )
         {
@@ -446,8 +449,8 @@ public class JModCreateMojo
             // and we can detect if auto modules are used. In that case, MavenProject.setFile() should not be used, so
             // you cannot depend on this project and so it won't be distributed.
 
-            modulepathElements = new ArrayList<String>();
-            classpathElements = new ArrayList<String>();
+            modulepathElements = new ArrayList<>();
+            classpathElements = new ArrayList<>();
 
             ResolvePathsResult<File> resolvePathsResult;
             try
@@ -516,7 +519,7 @@ public class JModCreateMojo
         {
             modulepathElements = Collections.emptyList();
 
-            classpathElements = new ArrayList<String>();
+            classpathElements = new ArrayList<>();
             for ( File file : dependencyArtifacts )
             {
                 classpathElements.add( file.getPath() );
@@ -548,7 +551,9 @@ public class JModCreateMojo
         List<String> classPaths;
         if ( classpathElements != null )
         {
-            classPaths = new ArrayList<>( classpathElements );
+            // Do not add classpath elements.
+//          classPaths = new ArrayList<>( classpathElements );
+          classPaths = new ArrayList<>( 1 );
         }
         else
         {
@@ -558,10 +563,10 @@ public class JModCreateMojo
         {
             classPaths.add( targetClassesDirectory.getAbsolutePath() );
         }
-        
+
         argsFile.println( "--class-path" );
         argsFile .append( '"' )
-                 .append( getPlatformSeparatedList( classPaths ).replace( "\\", "\\\\" ) ) 
+                 .append( getPlatformSeparatedList( classPaths ).replace( "\\", "\\\\" ) )
                  .println( '"' );
 
         if ( excludes != null && !excludes.isEmpty() )
@@ -631,7 +636,7 @@ public class JModCreateMojo
             argsFile.println( "--module-path" );
             argsFile
               .append( '"' )
-              .append( getPlatformSeparatedList( modulePaths ).replace( "\\", "\\\\" ) ) 
+              .append( getPlatformSeparatedList( modulePaths ).replace( "\\", "\\\\" ) )
               .println( '"' );
             //@formatter:off
         }
@@ -669,7 +674,7 @@ public class JModCreateMojo
 
     private List<String> handleConfigurationListWithDefault( List<String> configuration, String defaultLocation )
     {
-        List<String> commands = new ArrayList<String>();
+        List<String> commands = new ArrayList<>();
         if ( isConfigurationDefinedInPOM( configuration ) )
         {
             commands.addAll( configuration );
